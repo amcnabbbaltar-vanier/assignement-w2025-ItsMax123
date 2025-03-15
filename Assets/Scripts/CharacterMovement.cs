@@ -1,18 +1,22 @@
 using UnityEngine;
 using Cinemachine;
+using System;
+using UnityEngine.Serialization;
 
 [RequireComponent(typeof(Rigidbody))] // Ensures that a Rigidbody component is attached to the GameObject
 public class CharacterMovement : MonoBehaviour
 {
     // ============================== Movement Settings ==============================
-    [Header("Movement Settings")]
-    [SerializeField] private float baseWalkSpeed = 5f;    // Base speed when walking
-    [SerializeField] private float baseRunSpeed = 8f;     // Base speed when running
-    [SerializeField] private float rotationSpeed = 10f;   // Speed at which the character rotates
+    [Header("Movement Settings")] [SerializeField]
+    private float baseWalkSpeed = 5f; // Base speed when walking
+
+    [SerializeField] private float baseRunSpeed = 8f; // Base speed when running
+    [SerializeField] private float rotationSpeed = 10f; // Speed at which the character rotates
 
     // ============================== Jump Settings =================================
-    [Header("Jump Settings")]
-    [SerializeField] private float jumpForce = 5f;        // Jump force applied to the character
+    [Header("Jump Settings")] [SerializeField]
+    private float jumpForce = 5f; // Jump force applied to the character
+
     [SerializeField] private float groundCheckDistance = 1.1f; // Distance to check for ground contact (Raycast)
 
     // ============================== Modifiable from other scripts ==================
@@ -29,16 +33,20 @@ public class CharacterMovement : MonoBehaviour
     private Vector3 moveDirection; // Stores the calculated movement direction
 
     // ============================== Animation Variables ==============================
-    [Header("Anim values")]
-    public float groundSpeed; // Speed value used for animations
+    [Header("Anim values")] public float groundSpeed; // Speed value used for animations
 
     // ============================== Character State Properties ==============================
     /// <summary>
     /// Checks if the character is currently grounded using a Raycast.
     /// If false, the character is in the air.
     /// </summary>
-    public bool IsGrounded => 
+    public bool IsGrounded =>
         Physics.Raycast(transform.position + Vector3.up * 0.1f, Vector3.down, groundCheckDistance);
+
+    private bool doubleJump = false;
+    public bool canDoubleJump = false;
+
+    public static event Action OnDoubleJump;
 
     /// <summary>
     /// Checks if the player is currently holding the "Run" button.
@@ -100,7 +108,7 @@ public class CharacterMovement : MonoBehaviour
     private void RegisterInput()
     {
         moveX = Input.GetAxis("Horizontal"); // Get horizontal movement input
-        moveZ = Input.GetAxis("Vertical");   // Get vertical movement input
+        moveZ = Input.GetAxis("Vertical"); // Get vertical movement input
 
         // Register a jump request if the player presses the Jump button
         if (Input.GetButtonDown("Jump"))
@@ -111,9 +119,6 @@ public class CharacterMovement : MonoBehaviour
 
     // ============================== Movement Handling ==============================
 
-    /// <summary>
-    /// Handles movement-related logic: calculating direction, jumping, rotating, and moving.
-    /// </summary>
     private void HandleMovement()
     {
         CalculateMoveDirection(); // Compute the movement direction based on input
@@ -156,12 +161,24 @@ public class CharacterMovement : MonoBehaviour
     /// </summary>
     private void HandleJump()
     {
-        // Apply jump force only if jump was requested and the character is grounded
-        if (jumpRequest && IsGrounded)
+        if (!jumpRequest) return;
+        jumpRequest = false;
+        if (!canDoubleJump)
         {
-            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse); // Apply force upwards
-            jumpRequest = false; // Reset jump request after applying jump
+            if (!IsGrounded) return;
         }
+        else
+        {
+            if (IsGrounded) doubleJump = true;
+            else if (doubleJump)
+            {
+                doubleJump = false;
+                OnDoubleJump?.Invoke();
+            }
+            else return;
+        }
+
+        rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
     }
 
     /// <summary>
@@ -185,13 +202,13 @@ public class CharacterMovement : MonoBehaviour
     {
         // Determine movement speed (walking or running)
         float speed = IsRunning ? baseRunSpeed : baseWalkSpeed;
-        
+
         // Set ground speed value for animation purposes
         groundSpeed = (moveDirection != Vector3.zero) ? speed : 0.0f;
-
+        
         // Preserve the current Y velocity to maintain gravity effects
         Vector3 newVelocity = new Vector3(
-            moveDirection.x * speed * speedMultiplier, 
+            moveDirection.x * speed * speedMultiplier,
             rb.velocity.y, // Keep the existing Y velocity for jumping & gravity
             moveDirection.z * speed * speedMultiplier
         );

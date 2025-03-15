@@ -6,19 +6,34 @@ public class AnimatorController : MonoBehaviour
 {
     private Animator animator;
     private CharacterMovement characterMovement;
+    private Rigidbody rb;
+
     public void Start()
     {
         animator = GetComponent<Animator>();
         characterMovement = GetComponent<CharacterMovement>();
+        rb = GetComponent<Rigidbody>();
+        CharacterMovement.OnDoubleJump += DoFlip;
     }
+
+    void OnDestroy()
+    {
+        CharacterMovement.OnDoubleJump -= DoFlip;
+    }
+
     public void LateUpdate()
     {
        UpdateAnimator();
     }
 
-    // TODO Fill this in with your animator calls
     void UpdateAnimator()
     {
-        
+        animator.SetFloat("CharacterSpeed", rb.velocity.magnitude);
+        animator.SetBool("IsGrounded", characterMovement.IsGrounded);
+    }
+    
+    void DoFlip()
+    {
+        animator.SetTrigger("doFlip");
     }
 }
